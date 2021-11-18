@@ -8,9 +8,9 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = "^3.9"
 bitflyer = {git = "https://github.com/RainMakerProject/bitFlyer.git", rev = "main"}
-boto3 = "^1.20.5"
 fire = "^0.4.0"
 python-dotenv = "^0.19.2"
+chart-handler = {git = "https://github.com/RainMakerProject/chartHandler.git", rev = "main"}
 
 [tool.poetry.dev-dependencies]
 
