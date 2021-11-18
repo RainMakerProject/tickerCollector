@@ -1,6 +1,7 @@
 from typing import Dict
 
 import threading
+import time
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -48,9 +49,10 @@ def _determine_period(ts: datetime, duration: int) -> datetime:
 
 
 class TickerHandler:
-    def __init__(self) -> None:
+    def __init__(self, flush_interval: float = 10.0) -> None:
         self._lock = threading.Lock()
         self.__stick_of: Dict[ChartType, Dict[datetime, OHLCV]] = {}
+        self.__start_thread(flush_interval)
 
     @property
     def stick_of(self) -> Dict[ChartType, Dict[datetime, OHLCV]]:
@@ -97,10 +99,6 @@ class TickerHandler:
 
         self._lock.release()
 
-        ohlcv = stick_of[chart_type][period]
-        if chart_type is ChartType.BTC_JPY_ONE_MINUTE:
-            print(f'{chart_type.name}: {ohlcv.high}, {ohlcv.low}')
-
     def __update_stick(self, stick: OHLCV, price: float, volume: float, timestamp: datetime) -> None:
         stick.volume += volume
         stick.high = max(stick.high, price)
@@ -112,7 +110,55 @@ class TickerHandler:
             stick.close_timestamp = timestamp
             stick.close = price
 
+    def __start_thread(self, interval: float) -> None:
+        def _continue_flushing() -> None:
+            start_time = time.time()
+
+            while True:
+                _t = threading.Thread(target=self._flush())
+                _t.start()
+                _t.join()
+
+                time_to_wait = ((start_time - time.time()) % interval) or interval
+                time.sleep(time_to_wait)
+
+        t = threading.Thread(target=_continue_flushing)
+        t.start()
+
     def _flush(self) -> None:
+        stick_of = self.stick_of
+        new_stick_of = {}
+
         self._lock.acquire()
-        # Write OHLC into DDB
+
+        data = []
+        for chart_type, stick_at in stick_of.items():
+            if chart_type not in new_stick_of:
+                new_stick_of[chart_type] = stick_at
+
+            for ts, stick in stick_at.items():
+                try:
+                    c = ChartTable.get(chart_type, ts)
+                except DoesNotExist:
+                    c = ChartTable(chart_type, ts)
+
+                c.open_value = stick.open
+                c.high_value = stick.high
+                c.low_value = stick.low
+                c.close_value = stick.close
+                c.volume = stick.volume
+                c.open_timestamp = stick.open_timestamp
+                c.close_timestamp = stick.close_timestamp
+                data.append(c)
+
+                if list(new_stick_of[chart_type].keys())[0] < ts:
+                    new_stick_of.clear()
+                    new_stick_of[chart_type] = stick_at
+
+        with ChartTable.batch_write() as b:
+            for datum in data:
+                b.save(datum)
+
+        self.__stick_of = new_stick_of
+
         self._lock.release()
