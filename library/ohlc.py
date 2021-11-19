@@ -152,8 +152,8 @@ class TickerHandler:
                 data.append(c)
 
                 if list(new_stick_of[chart_type].keys())[0] < ts:
-                    new_stick_of.clear()
-                    new_stick_of[chart_type] = stick_at
+                    new_stick_of[chart_type].clear()
+                    new_stick_of[chart_type][ts] = stick
 
         with ChartTable.batch_write() as b:
             for datum in data:
