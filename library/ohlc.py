@@ -1,9 +1,8 @@
-from typing import Dict
+from typing import Dict, Optional
 
 import logging
 import threading
 import time
-import heapq
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -58,6 +57,7 @@ STICK_OF = Dict[ChartType, Dict[datetime, OHLCV]]
 class TickerHandler:
     def __init__(self, flush_interval: float = 10.0) -> None:
         self._lock = threading.Lock()
+        self._thread: Optional[threading.Thread] = None
         self.__stick_of: STICK_OF = {}
         self.__start_thread(flush_interval)
 
@@ -66,6 +66,9 @@ class TickerHandler:
         while self._lock.locked():
             pass
         return self.__stick_of
+
+    def is_alive(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
 
     def append(self, ticker: Ticker) -> None:
         self._append(self.stick_of, ticker)
@@ -133,6 +136,7 @@ class TickerHandler:
 
         t = threading.Thread(target=_continue_flushing)
         t.start()
+        self._thread = t
 
     def _flush(self) -> None:
         stick_of = self.stick_of
