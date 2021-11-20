@@ -1,7 +1,9 @@
 from typing import Dict
 
+import logging
 import threading
 import time
+import heapq
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -10,6 +12,8 @@ from pynamodb.exceptions import DoesNotExist
 
 from bitflyer import Ticker, Candlestick, ChartType
 from chart_handler.models import ChartTable
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -48,10 +52,13 @@ def _determine_period(ts: datetime, duration: int) -> datetime:
     raise RuntimeError(f'Unsupported timeframe: {duration}')
 
 
+STICK_OF = Dict[ChartType, Dict[datetime, OHLCV]]
+
+
 class TickerHandler:
     def __init__(self, flush_interval: float = 10.0) -> None:
         self._lock = threading.Lock()
-        self.__stick_of: Dict[ChartType, Dict[datetime, OHLCV]] = {}
+        self.__stick_of: STICK_OF = {}
         self.__start_thread(flush_interval)
 
     @property
@@ -61,14 +68,14 @@ class TickerHandler:
         return self.__stick_of
 
     def append(self, ticker: Ticker) -> None:
-        for c in Candlestick:
-            self.__append(c, ticker)
+        self._append(self.stick_of, ticker)
 
-    def __append(self, candle: Candlestick, ticker: Ticker) -> None:
-        stick_of = self.stick_of
+    def _append(self, stick_of: STICK_OF, ticker: Ticker) -> None:
+        with self._lock:
+            for c in Candlestick:
+                self.__append(stick_of, c, ticker)
 
-        self._lock.acquire()
-
+    def __append(self, stick_of: STICK_OF, candle: Candlestick, ticker: Ticker) -> None:
         price = ticker.ltp
         volume = ticker.volume
         timestamp = ticker.timestamp
@@ -97,8 +104,6 @@ class TickerHandler:
 
         self.__update_stick(stick_of[chart_type][period], price, volume, timestamp)
 
-        self._lock.release()
-
     def __update_stick(self, stick: OHLCV, price: float, volume: float, timestamp: datetime) -> None:
         stick.volume += volume
         stick.high = max(stick.high, price)
@@ -115,9 +120,13 @@ class TickerHandler:
             start_time = time.time()
 
             while True:
-                _t = threading.Thread(target=self._flush())
+                _t = threading.Thread(target=self._flush)
                 _t.start()
-                _t.join()
+
+                try:
+                    _t.join()
+                except Exception as e:
+                    logger.error(e)
 
                 time_to_wait = ((start_time - time.time()) % interval) or interval
                 time.sleep(time_to_wait)
@@ -127,15 +136,10 @@ class TickerHandler:
 
     def _flush(self) -> None:
         stick_of = self.stick_of
-        new_stick_of = {}
-
         self._lock.acquire()
 
         data = []
         for chart_type, stick_at in stick_of.items():
-            if chart_type not in new_stick_of:
-                new_stick_of[chart_type] = stick_at
-
             for ts, stick in stick_at.items():
                 try:
                     c = ChartTable.get(chart_type, ts)
@@ -151,14 +155,22 @@ class TickerHandler:
                 c.close_timestamp = stick.close_timestamp
                 data.append(c)
 
-                if list(new_stick_of[chart_type].keys())[0] < ts:
-                    new_stick_of[chart_type].clear()
-                    new_stick_of[chart_type][ts] = stick
-
         with ChartTable.batch_write() as b:
             for datum in data:
                 b.save(datum)
 
-        self.__stick_of = new_stick_of
+        new_stick_of: STICK_OF = {}
+        for chart_type, stick_at in stick_of.items():
+            new_stick_of[chart_type] = {}
+            timestamps = list(stick_at.keys())
+            timestamps.sort()
 
+            for i in range(1, 6):
+                try:
+                    _ts = timestamps[-i]
+                except IndexError:
+                    break
+                new_stick_of[chart_type][_ts] = stick_of[chart_type][_ts]
+
+        self.__stick_of = new_stick_of
         self._lock.release()
