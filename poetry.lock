@@ -1,6 +1,6 @@
 [[package]]
 name = "bitflyer"
-version = "0.1.2"
+version = "0.1.4"
 description = ""
 category = "main"
 optional = false
@@ -15,7 +15,7 @@ websocket-client = "^1.2.1"
 type = "git"
 url = "https://github.com/RainMakerProject/bitFlyer.git"
 reference = "main"
-resolved_reference = "56dcf687d22d6f84bef230f01dff2f9ed004463f"
+resolved_reference = "418da4454492d8b48589bdb5c36dda976bb9240e"
 
 [[package]]
 name = "botocore"

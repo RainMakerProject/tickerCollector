@@ -58,17 +58,15 @@ class TickerHandler:
     def __init__(self, flush_interval: float = 10.0) -> None:
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
+        self._to_stop = True
         self.__stick_of: STICK_OF = {}
-        self.__start_thread(flush_interval)
+        self._interval = flush_interval
 
     @property
     def stick_of(self) -> Dict[ChartType, Dict[datetime, OHLCV]]:
         while self._lock.locked():
             pass
         return self.__stick_of
-
-    def is_alive(self) -> bool:
-        return self._thread is not None and self._thread.is_alive()
 
     def append(self, ticker: Ticker) -> None:
         self._append(self.stick_of, ticker)
@@ -118,18 +116,27 @@ class TickerHandler:
             stick.close_timestamp = timestamp
             stick.close = price
 
-    def __start_thread(self, interval: float) -> None:
+    def is_alive(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
+    def stop(self) -> None:
+        self._to_stop = True
+
+    def start(self) -> None:
+        self._to_stop = False
+
         def _continue_flushing() -> None:
             start_time = time.time()
+            interval = self._interval
 
             while True:
+                if self._to_stop:
+                    self._flush()
+                    break
+
                 _t = threading.Thread(target=self._flush)
                 _t.start()
-
-                try:
-                    _t.join()
-                except Exception as e:
-                    logger.error(e)
+                _t.join()
 
                 time_to_wait = ((start_time - time.time()) % interval) or interval
                 time.sleep(time_to_wait)
