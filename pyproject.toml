@@ -6,7 +6,7 @@ authors = ["studio3104 <studio3104.com@gmail.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.9,<3.11"
 bitflyer = {git = "https://github.com/RainMakerProject/bitFlyer.git", rev = "main"}
 fire = "^0.4.0"
 python-dotenv = "^0.19.2"
