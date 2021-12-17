@@ -126,20 +126,13 @@ class TickerHandler:
         self._to_stop = False
 
         def _continue_flushing() -> None:
-            start_time = time.time()
-            interval = self._interval
-
             while True:
+                self._flush()
+
                 if self._to_stop:
-                    self._flush()
                     break
 
-                _t = threading.Thread(target=self._flush)
-                _t.start()
-                _t.join()
-
-                time_to_wait = ((start_time - time.time()) % interval) or interval
-                time.sleep(time_to_wait)
+                time.sleep(self._interval)
 
         t = threading.Thread(target=_continue_flushing)
         t.start()
@@ -147,8 +140,10 @@ class TickerHandler:
 
     def _flush(self) -> None:
         stick_of = self.stick_of
-        self._lock.acquire()
+        with self._lock:
+            self.__flush(stick_of)
 
+    def __flush(self, stick_of: Dict[ChartType, Dict[datetime, OHLCV]]) -> None:
         data = []
         for chart_type, stick_at in stick_of.items():
             for ts, stick in stick_at.items():
@@ -184,4 +179,3 @@ class TickerHandler:
                 new_stick_of[chart_type][_ts] = stick_of[chart_type][_ts]
 
         self.__stick_of = new_stick_of
-        self._lock.release()
