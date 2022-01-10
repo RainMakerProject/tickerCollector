@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=getattr(logging, os.getenv('LOG_LEVEL', 'WARNING')))
 
 client = BitFlyerRealTime()
-handler = TickerHandler(flush_interval=1.0)
+handler = TickerHandler(flush_interval=1.5)
 
 
 def run(*product_code: str) -> None:
