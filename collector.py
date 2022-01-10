@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=getattr(logging, os.getenv('LOG_LEVEL', 'WARNING')))
 
 client = BitFlyerRealTime()
-handler = TickerHandler()
+handler = TickerHandler(flush_interval=1.0)
 
 
 def run(*product_code: str) -> None:
@@ -26,7 +26,7 @@ def run(*product_code: str) -> None:
     handler.start()
 
     while True:
-        time.sleep(10.0)
+        time.sleep(2.0)
 
         if not client.is_alive() or not handler.is_alive():
             if not client.is_alive():
