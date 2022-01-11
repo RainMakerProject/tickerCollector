@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from bitflyer import BitFlyerRealTime, PublicChannel, ProductCode
 
-from library.ohlc import TickerHandler
+from ticker_collector.ohlc import TickerHandler
 
 load_dotenv()
 

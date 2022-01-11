@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "tickercollector"
+name = "ticker_collector"
 version = "0.1.0"
 description = ""
 authors = ["studio3104 <studio3104.com@gmail.com>"]
